@@ -16,7 +16,7 @@ class SingleGate(Gate):
     r"""A base class for single-qubit gates.
 
     Args:
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 1
         wires (int, List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
             Default: ``None``
@@ -66,7 +66,7 @@ class DoubleGate(Gate):
     r"""A base class for two-qubit gates.
 
     Args:
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 2
         wires (List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
             Default: ``None``
@@ -154,7 +154,7 @@ class DoubleControlGate(DoubleGate):
     r"""A base class for two-qubit controlled gates.
 
     Args:
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 2
         wires (List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
             Default: ``None``
@@ -195,7 +195,7 @@ class TripleGate(Gate):
     r"""A base class for three-qubit gates.
 
     Args:
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 3
         wires (List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
             Default: ``None``
@@ -301,7 +301,7 @@ class ParametricSingleGate(SingleGate):
     r"""A base class for single-qubit gates with parameters.
 
     Args:
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         inputs (Any, optional): The parameters of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 1
         wires (int, List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
@@ -386,7 +386,7 @@ class ParametricDoubleGate(DoubleGate):
     r"""A base class for two-qubit gates with parameters.
 
     Args:
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         inputs (Any, optional): The parameters of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 2
         wires (List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
@@ -659,7 +659,7 @@ class PhaseShift(ParametricSingleGate):
         theta = self.inputs_to_tensor(theta)
         m1 = torch.eye(1, dtype=theta.dtype, device=theta.device)
         e_it = torch.exp(1j * theta)
-        return torch.block_diag(m1, e_it)
+        return torch.block_diag(m1, e_it).reshape(2, 2)
 
     def _qasm(self) -> str:
         if self.inv_mode:
@@ -1314,7 +1314,7 @@ class Rz(ParametricSingleGate):
         theta = self.inputs_to_tensor(theta)
         e_m_it = torch.exp(-1j * theta / 2)
         e_it = torch.exp(1j * theta / 2)
-        return torch.stack([e_m_it, e_it]).reshape(-1).diag_embed()
+        return torch.stack([e_m_it, e_it]).reshape(-1).diag_embed().reshape(2, 2)
 
     def _qasm(self) -> str:
         if self.inv_mode:
@@ -1336,7 +1336,7 @@ class CombinedSingleGate(SingleGate):
 
     Args:
         gatelist (List[SingleGate]): The list of single-qubit gates.
-        name (str, optional): The name of the gate. Default: ``None``
+        name (str or None, optional): The name of the gate. Default: ``None``
         nqubit (int, optional): The number of qubits that the quantum operation acts on. Default: 1
         wires (int, List[int] or None, optional): The indices of the qubits that the quantum operation acts on.
             Default: ``None``
@@ -1569,8 +1569,8 @@ class Rxx(ParametricDoubleGate):
         theta = self.inputs_to_tensor(theta)
         cos  = torch.cos(theta / 2)
         isin = torch.sin(theta / 2) * 1j
-        m1 = torch.stack([cos, cos, cos, cos]).reshape(-1).diag_embed()
-        m2 = torch.stack([-isin, -isin, -isin, -isin]).reshape(-1).diag_embed().fliplr()
+        m1 = torch.stack([cos, cos, cos, cos]).reshape(-1).diag_embed().reshape(4, 4)
+        m2 = torch.stack([-isin, -isin, -isin, -isin]).reshape(-1).diag_embed().fliplr().reshape(4, 4)
         return m1 + m2
 
     def _qasm(self) -> str:
@@ -1637,8 +1637,8 @@ class Ryy(ParametricDoubleGate):
         theta = self.inputs_to_tensor(theta)
         cos  = torch.cos(theta / 2)
         isin = torch.sin(theta / 2) * 1j
-        m1 = torch.stack([cos, cos, cos, cos]).reshape(-1).diag_embed()
-        m2 = torch.stack([isin, -isin, -isin, isin]).reshape(-1).diag_embed().fliplr()
+        m1 = torch.stack([cos, cos, cos, cos]).reshape(-1).diag_embed().reshape(4, 4)
+        m2 = torch.stack([isin, -isin, -isin, isin]).reshape(-1).diag_embed().fliplr().reshape(4, 4)
         return m1 + m2
 
     def _qasm(self) -> str:
@@ -1712,7 +1712,7 @@ class Rzz(ParametricDoubleGate):
         theta = self.inputs_to_tensor(theta)
         e_m_it = torch.exp(-1j * theta / 2)
         e_it = torch.exp(1j * theta / 2)
-        return torch.stack([e_m_it, e_it, e_it, e_m_it]).reshape(-1).diag_embed()
+        return torch.stack([e_m_it, e_it, e_it, e_m_it]).reshape(-1).diag_embed().reshape(4, 4)
 
     def _qasm(self) -> str:
         if self.inv_mode:

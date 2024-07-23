@@ -13,6 +13,7 @@ from scipy.optimize import root
 from .circuit import QumodeCircuit
 from .qmath import sort_dict_fock_basis, takagi
 from ..qmath import is_unitary
+from .state import FockState
 
 
 class Clements(QumodeCircuit):
@@ -122,7 +123,7 @@ class GaussianBosonSampling(QumodeCircuit):
         super().__init__(nmode=nmode, init_state='vac', cutoff=cutoff, backend=backend, basis=basis,
                          detector=detector, name='GBS', noise=noise, mu=mu, sigma=sigma)
         for i in range(self.nmode):
-            self.s(i, [squeezing[i], 0])
+            self.s(i, squeezing[i])
         self.clements(unitary)
 
 
@@ -188,7 +189,10 @@ class GBS_Graph(GaussianBosonSampling):
         samples_ = copy.deepcopy(samples)
         for key in samples_.keys():
             temp_prob = copy.deepcopy(samples_[key])
-            idx = torch.nonzero(key.state).squeeze()
+            if isinstance(key, FockState):
+                idx = torch.nonzero(key.state).squeeze()
+            else:
+                idx = torch.nonzero(torch.tensor(key)).squeeze()
             density = nx.density(graph.subgraph(idx.tolist()))
             samples_[key] = [temp_prob, density]
         sort_samples = sort_dict_fock_basis(samples_, 1)

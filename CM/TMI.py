@@ -30,40 +30,34 @@ class TripartiteMutualInformation():
             init_state: any = 'vac',
             s_r: float = 0,
             s_phi: float = 0,
-            m1_r: float = 0,
-            m1_phi: float = 0,
+            m2_r: float = 0,
+            m2_phi: float = 0,
+            if_save_circuit: bool = False,
         ) -> None:
 
         N_total = Ns + Nm + NL
+        theta = 2*eta - np.pi
 
-        # initial state
-        cov = torch.eye(2*(N_total+1))
-        mean = torch.zeros(2*(N_total+1))
-
-        # cir = dq.QumodeCircuit(nmode=num_ME+1, init_state=[cov, mean], 
-        #                        backend='gaussian', 
-        #                        name='try', noise=False)
-
-        cir = dq.QumodeCircuit(nmode=N_total, init_state='vac', 
+        cir = dq.QumodeCircuit(nmode=N_total, init_state=init_state, 
                             backend='gaussian', 
                             name='try', noise=False,
                             mu = 0, sigma = 0)
 
         # s0,m1, two-mode squeezed vacuum (TMSV) state 
         # # S(r,theta)
-        cir.s(0, [s_r, s_phi])
-        cir.s(1, [m1_r, m1_phi])
+        cir.s2(wires=[0, 1], r=s_r, theta=s_phi)
 
         # m2, single-mode squeezing vacuum (SMSV) state 
-        cir.s(2, [r_k, phi_k])
+        cir.s(wires=2,  r=m2_r, theta=m2_phi)
 
         for i in range(N_total-2):
             for j in range(N_total-i-2):
-                cir.bs_real(wires=[j+1,j+2], inputs=[eta, np.nan])
+                cir.bs_ry(wires=[j+1,j+2], inputs=theta)
                 cir.ps(j+1, [delta_k])
 
         #线路可视化
-        cir.draw('pic/CM_circ_num_ME{}.svg'.format(N_total))
+        if if_save_circuit:
+            cir.draw('pic/CM_circ_num_ME{}.svg'.format(N_total))
     
         state = cir.forward()
 
@@ -127,14 +121,20 @@ class TripartiteMutualInformation():
                 sigma_sm12[i][j] = get_sigma( index_sm12[choose[i][j][0]+choose[i][j][2]], 
                                     index_sm12[choose[i][j][1]+choose[i][j][3]] )[0][1]
 
-        I2_s_m1 = S(sigma_s) + S(sigma_m1) - S(sigma_sm1)
-        I2_s_m2 = S(sigma_s) + S(sigma_m2) - S(sigma_sm2)
+        self.I2_s_m1 = S(sigma_s) + S(sigma_m1) - S(sigma_sm1)
+        self.I2_s_m2 = S(sigma_s) + S(sigma_m2) - S(sigma_sm2)
         self.I2_s_m12 = S(sigma_s) + S(sigma_m12) - S(sigma_sm12)
 
-        self.I3_s_m1_m2 = I2_s_m1 + I2_s_m2 - self.I2_s_m12
+        self.I3_s_m1_m2 = self.I2_s_m1 + self.I2_s_m2 - self.I2_s_m12
 
     def I3(self):
         return self.I3_s_m1_m2
     
     def I2_SM12(self):
         return self.I2_s_m12
+    
+    def I2_SM1(self):
+        return self.I2_s_m1
+    
+    def I2_SM2(self):
+        return self.I2_s_m2

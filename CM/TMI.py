@@ -30,9 +30,8 @@ class TripartiteMutualInformation():
             init_state: any = 'vac',
             s_r: float = 0,
             s_phi: float = 0,
-            m2_r: float = 0,
-            m2_phi: float = 0,
             if_save_circuit: bool = False,
+            if_odd_even: bool = False  ## if True, phi_k should be a list
         ) -> None:
 
         N_total = Ns + Nm + NL
@@ -47,8 +46,13 @@ class TripartiteMutualInformation():
         # # S(r,theta)
         cir.s2(wires=[0, 1], r=s_r, theta=s_phi)
 
-        # m2, single-mode squeezing vacuum (SMSV) state 
-        cir.s(wires=2,  r=m2_r, theta=m2_phi)
+        # m2, single-mode squeezing vacuum (SMSV) state
+        if not if_odd_even:
+            for i in range(Nm+NL-1):
+                cir.s(wires=2+i, r=r_k, theta=phi_k)
+        else:
+            for i in range(Nm+NL-1):
+                cir.s(wires=2+i, r=r_k, theta=phi_k[i % 2])
 
         for i in range(N_total-2):
             for j in range(N_total-i-2):
@@ -57,33 +61,35 @@ class TripartiteMutualInformation():
 
         #线路可视化
         if if_save_circuit:
-            cir.draw('pic/CM_circ_num_ME{}.svg'.format(N_total))
+            cir.draw('pic/CM_circ_numME{}.svg'.format(N_total))
     
         state = cir.forward()
 
         # 这里measure_homodyne测量对应的物理量是正交算符 $$\hat x$$ 和 $$\hat p$$ 的值，
         # photon_number_mean_var对应的是每个mode的光子数的平均值和方差。
-
-        # 第一个光子：x1，p1，x2，p2...
-        # 第二个光子：x1，p1，x2，p2...
+        # Use ``xxpp`` convention
+        # 第一个光子：x1，x2，... p1，p2...
+        # 第二个光子：x1，x2，... p1，p2...
 
         sample = cir.measure_homodyne(shots=shots)
 
-        # ( [平均值], [方差] )
-        photon_number = cir.photon_number_mean_var()
+        # # ( [平均值], [方差] )
+        # photon_number = cir.photon_number_mean_var()
 
-        s_xj = np.array(sample.T[0])
-        s_xk = np.array(sample.T[1])
-        m_xp = np.array(sample.T[2*1:2*(Ns+Nm)][:]) # m1x, m1p, m2x, m2p
-        e_xp = np.array(sample.T[2*(Ns+Nm):][:])
+        s_x = np.array(sample.T[:Ns]) 
+        s_p = np.array(sample.T[Ns+Nm+NL:2*Ns+Nm+NL][:])
+        m_x = np.array(sample.T[Ns:(Ns+Nm)][:]) 
+        m_p = np.array(sample.T[2*Ns+Nm+NL:2*Ns+2*Nm+NL][:])
+        e_x = np.array(sample.T[Ns+Nm:Ns+Nm+NL][:])
+        e_p = np.array(sample.T[2*Ns+2*Nm+NL:][:])
 
         sigma_s = np.zeros((2,2))
         sigma_m1 = np.zeros((2,2))
         sigma_m2 = np.zeros((2,2))
 
-        sigma_s = get_sigma(s_xj, s_xk)
-        sigma_m1 = get_sigma(m_xp[0], m_xp[1])
-        sigma_m2 = get_sigma(m_xp[2], m_xp[3])
+        sigma_s = get_sigma(s_x, s_p)
+        sigma_m1 = get_sigma(m_x[0], m_p[0])
+        sigma_m2 = get_sigma(m_x[1], m_p[1])
                 
         sigma_m12 = np.zeros((2*Nm,2*Nm))
         sigma_sm1 = np.zeros((2*(Ns+1),2*(Ns+1)))
@@ -93,9 +99,9 @@ class TripartiteMutualInformation():
                 ['pxaa', 'ppaa', 'pxab', 'ppab'],
                 ['xxba', 'xpba', 'xxbb', 'xpbb'],
                 ['pxba', 'ppba', 'pxbb', 'ppbb']]
-        index_m12 = {'xa':m_xp[0], 'pa':m_xp[1], 'xb':m_xp[2], 'pb':m_xp[3]}
-        index_sm1 = {'xa':s_xj, 'pa':s_xk, 'xb':m_xp[0], 'pb':m_xp[1]}
-        index_sm2 = {'xa':s_xj, 'pa':s_xk, 'xb':m_xp[2], 'pb':m_xp[3]}
+        index_m12 = {'xa':m_x[0], 'pa':m_p[0], 'xb':m_x[1], 'pb':m_p[1]}
+        index_sm1 = {'xa':s_x, 'pa':s_p, 'xb':m_x[0], 'pb':m_p[0]}
+        index_sm2 = {'xa':s_x, 'pa':s_p, 'xb':m_x[1], 'pb':m_p[1]}
 
         for i in range(Nm*2):
             for j in range(Nm*2):
@@ -114,7 +120,7 @@ class TripartiteMutualInformation():
                 ['pxba', 'ppba', 'pxbb', 'ppbb', 'pxbc', 'ppbc'],
                 ['xxca', 'xpca', 'xxcb', 'xpcb', 'xxcc', 'xpcc'],
                 ['pxca', 'ppca', 'pxcb', 'ppcb', 'pxcc', 'ppcc']]
-        index_sm12 = {'xa':s_xj, 'pa':s_xk, 'xb':m_xp[0], 'pb':m_xp[1], 'xc':m_xp[2], 'pc':m_xp[3]}
+        index_sm12 = {'xa':s_x, 'pa':s_p, 'xb':m_x[0], 'pb':m_p[0], 'xc':m_x[1], 'pc':m_p[1]}
 
         for i in range(2*(Ns+Nm)):
             for j in range(2*(Ns+Nm)):
